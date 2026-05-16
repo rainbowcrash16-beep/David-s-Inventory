@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0D0A1A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="David's Inventory">
+<title>David's Personal Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --accent:#7C3AED;--accent2:#A78BFA;--green:#00D4AA;--red:#FF4D6D;
+  --amber:#FFB020;--blue:#4D9FFF;--purple:#A78BFA;
+  --dark:#0D0A1A;--card:#13101F;--panel:#1A1628;--border:#241E38;
+  --text:#EDE9F8;--muted:#6B5E8A;
+  --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--dark);color:var(--text);font-family:var(--font-mono)}
+#app{display:flex;flex-direction:column;height:100dvh}
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:90px}
+
+nav{display:flex;background:var(--card);border-top:1px solid var(--border);position:fixed;bottom:0;left:0;right:0;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:none;color:var(--muted);padding:8px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;transition:color .2s;font-family:var(--font-mono);font-size:8px;letter-spacing:.5px}
+nav button.active{color:var(--accent2)}
+nav button svg{width:20px;height:20px}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;padding-top:calc(14px + env(safe-area-inset-top))}
+.hdr h1{font-family:var(--font-head);font-size:18px;letter-spacing:2px;color:var(--accent2)}
+.hdr .sub{font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:2px}
+
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 10px;font-size:10px;font-weight:700;letter-spacing:1px}
+.badge-red   {background:color-mix(in srgb,var(--red)    15%,transparent);border:1px solid var(--red);   color:var(--red)}
+.badge-green {background:color-mix(in srgb,var(--green)  15%,transparent);border:1px solid var(--green); color:var(--green)}
+.badge-amber {background:color-mix(in srgb,var(--amber)  15%,transparent);border:1px solid var(--amber); color:var(--amber)}
+.badge-purple{background:color-mix(in srgb,var(--purple) 15%,transparent);border:1px solid var(--purple);color:var(--purple)}
+.badge-accent{background:color-mix(in srgb,var(--accent) 15%,transparent);border:1px solid var(--accent2);color:var(--accent2)}
+
+.search-row{display:flex;align-items:center;gap:8px;background:var(--panel);margin:0 16px 10px;border-radius:12px;padding:10px 14px}
+.search-row input{flex:1;background:none;border:none;color:var(--text);font-size:14px;font-family:var(--font-mono);outline:none}
+.search-row input::placeholder{color:var(--muted)}
+
+.pills{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none}
+.pills::-webkit-scrollbar{display:none}
+.pill{border:1px solid var(--muted);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;background:none;cursor:pointer;font-family:var(--font-mono);letter-spacing:.5px;transition:all .15s}
+.pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.pill.active-red{background:var(--red);border-color:var(--red);color:#fff}
+
+/* Item cards */
+.item-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:0;margin-bottom:10px;cursor:pointer;transition:border-color .15s;animation:fadeUp .2s ease both;overflow:hidden}
+.item-card.missing{border-color:color-mix(in srgb,var(--red) 40%,transparent)}
+.item-card.broken {border-color:color-mix(in srgb,var(--purple) 40%,transparent)}
+.item-card.hd-card{border-left:3px solid var(--accent)}
+.item-card:active{opacity:.8}
+.card-photo{width:100%;height:110px;object-fit:cover;display:block}
+.card-body{padding:14px}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.item-name{font-family:var(--font-head);font-size:15px;font-weight:800;margin-bottom:4px}
+.item-loc{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px}
+.item-loc svg{width:11px;height:11px;flex-shrink:0}
+.serial-preview{font-size:10px;color:var(--accent2);font-family:var(--font-mono);margin-top:4px;letter-spacing:.5px}
+.status-chip{border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;letter-spacing:.8px;white-space:nowrap;flex-shrink:0}
+.chip-home  {background:color-mix(in srgb,var(--green)  18%,transparent);color:var(--green)}
+.chip-out   {background:color-mix(in srgb,var(--red)    18%,transparent);color:var(--red)}
+.chip-broken{background:color-mix(in srgb,var(--purple) 18%,transparent);color:var(--purple)}
+.chip-empty {background:color-mix(in srgb,var(--amber)  18%,transparent);color:var(--amber)}
+.cat-chip{display:inline-block;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:.5px;margin-bottom:6px}
+.cat-dr{background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent2);border:1px solid var(--accent)}
+.cat-hd{background:color-mix(in srgb,var(--blue) 20%,transparent);color:var(--blue);border:1px solid var(--blue)}
+.borrower-row{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--amber)}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:80px 20px;color:var(--muted);text-align:center}
+.empty svg{opacity:.4}
+.empty p{font-size:15px;line-height:1.6}
+
+/* Modals */
+.overlay{display:none;position:fixed;inset:0;background:#000a;z-index:200;align-items:flex-end}
+.overlay.open{display:flex}
+.sheet{background:var(--card);border-radius:24px 24px 0 0;width:100%;max-height:92dvh;overflow-y:auto;padding:24px 24px calc(24px + env(safe-area-inset-bottom));animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeUp {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.sheet-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;gap:12px}
+.sheet-hdr h2{font-family:var(--font-head);font-size:20px;font-weight:800;flex:1}
+.close-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;flex-shrink:0}
+
+.detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border);gap:12px}
+.detail-row .dl{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.8px;flex-shrink:0}
+.detail-row .dv{font-size:13px;text-align:right;word-break:break-all}
+.serial-box{background:var(--panel);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin:12px 0;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.serial-box .sl{font-size:10px;color:var(--accent2);font-weight:700;letter-spacing:1px;margin-bottom:4px}
+.serial-box .sv{font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text);letter-spacing:1px;word-break:break-all}
+.serial-box .shield{color:var(--accent2);flex-shrink:0}
+.sec-label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;margin:16px 0 8px}
+
+/* Checkout */
+.checkout-box{background:var(--panel);border-radius:14px;padding:16px;margin:16px 0}
+.checkout-box h3{font-family:var(--font-head);font-size:13px;margin-bottom:12px;color:var(--muted);letter-spacing:1px}
+.co-field{margin-bottom:10px}
+.co-field label{display:block;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-bottom:5px}
+.co-field label .req{color:var(--red)}
+.co-input{width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:14px;font-family:var(--font-mono);outline:none;transition:border-color .15s}
+.co-input:focus{border-color:var(--accent)}
+.co-input.err{border-color:var(--red)!important;animation:shake .3s ease}
+.co-input::placeholder{color:var(--muted)}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.co-err{font-size:11px;color:var(--red);margin-top:4px;display:none}
+.co-err.show{display:block}
+
+.report-row{display:flex;gap:8px;margin:12px 0}
+.report-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--panel);cursor:pointer;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--muted)}
+.report-btn:active{opacity:.7}
+.report-btn.rb-broke{border-color:var(--purple);color:var(--purple);background:color-mix(in srgb,var(--purple) 10%,transparent)}
+.report-btn.rb-empty{border-color:var(--amber); color:var(--amber); background:color-mix(in srgb,var(--amber)  10%,transparent)}
+.report-btn.rb-swap {border-color:var(--red);   color:var(--red);   background:color-mix(in srgb,var(--red)    10%,transparent)}
+
+/* QR */
+.qr-toggle{display:flex;align-items:center;gap:8px;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer;color:var(--accent2);font-size:14px;font-weight:600;background:none;border-top:none;border-left:none;border-right:none;width:100%;font-family:var(--font-mono)}
+.qr-box{display:none;flex-direction:column;align-items:center;gap:12px;padding:20px 0;border-bottom:1px solid var(--border)}
+.qr-box.open{display:flex}
+.qr-hint{font-size:11px;color:var(--muted);text-align:center;line-height:1.5}
+.qr-actions{display:flex;gap:10px;width:100%}
+
+/* Activity */
+.log-entry{padding:12px 0;border-bottom:1px solid var(--border)}
+.log-entry:last-child{border-bottom:none}
+.log-action{font-size:13px;font-weight:600;margin-bottom:3px}
+.log-meta{font-size:11px;color:var(--muted)}
+.log-detail{font-size:12px;color:var(--text);margin-top:3px;font-style:italic}
+
+/* Buttons */
+.btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;border:none;font-family:var(--font-mono);letter-spacing:.5px;min-width:100px;transition:opacity .15s}
+.btn:active{opacity:.75}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-green {background:var(--green); color:var(--dark)}
+.btn-red   {background:color-mix(in srgb,var(--red)    15%,transparent);border:1px solid var(--red);   color:var(--red)}
+.btn-amber {background:color-mix(in srgb,var(--amber)  15%,transparent);border:1px solid var(--amber); color:var(--amber)}
+.btn-purple{background:color-mix(in srgb,var(--purple) 15%,transparent);border:1px solid var(--purple);color:var(--purple)}
+.btn-ghost {background:var(--panel);color:var(--text)}
+.btn-full  {width:100%;flex:none;margin-top:8px}
+.action-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+
+/* Form */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;color:#9B8FC0;font-weight:700;letter-spacing:1px;margin-bottom:6px}
+.field input,.field textarea,.field select{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:15px;font-family:var(--font-mono);outline:none;transition:border-color .15s}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
+.field input.err{border-color:var(--red)}
+.field .hint{font-size:11px;color:var(--muted);margin-top:4px}
+.field .err-msg{font-size:11px;color:var(--red);margin-top:4px;display:none}
+.field textarea{min-height:70px;resize:none}
+.field select option{background:var(--panel)}
+
+/* Category toggle */
+.cat-toggle{display:flex;gap:10px;margin-bottom:16px}
+.cat-btn{flex:1;padding:14px;border-radius:12px;border:1px solid var(--border);background:var(--panel);cursor:pointer;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--muted);text-align:center;transition:all .15s}
+.cat-btn.active-dr{border-color:var(--accent);color:var(--accent2);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.cat-btn.active-hd{border-color:var(--blue);color:var(--blue);background:color-mix(in srgb,var(--blue) 12%,transparent)}
+
+/* Location picker */
+.loc-picker{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:16px}
+.loc-picker-hdr{font-size:11px;color:#9B8FC0;font-weight:700;letter-spacing:1px;margin-bottom:10px}
+.loc-breadcrumb{font-size:12px;color:var(--accent2);margin-bottom:10px;min-height:18px;line-height:1.5}
+.loc-grid{display:grid;gap:8px;margin-bottom:8px}
+.loc-btn{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 6px;font-size:12px;font-weight:700;font-family:var(--font-mono);color:var(--text);cursor:pointer;text-align:center;transition:all .15s;line-height:1.3}
+.loc-btn:active,.loc-btn.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.loc-back{background:none;border:none;color:var(--muted);font-size:12px;font-family:var(--font-mono);cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:4px;margin-top:4px}
+.loc-result{background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin-top:8px;font-size:13px;color:var(--accent2);font-weight:700;line-height:1.5}
+.loc-err{font-size:11px;color:var(--red);margin-top:6px;display:none}
+.loc-err.show{display:block}
+
+/* HD form fields */
+.hd-fields{background:var(--panel);border-radius:14px;padding:14px;margin-bottom:16px;border:1px solid color-mix(in srgb,var(--blue) 30%,transparent)}
+.hd-fields .hf-label{font-size:11px;color:var(--blue);font-weight:700;letter-spacing:1px;margin-bottom:12px}
+
+/* Photo upload */
+.photo-upload{position:relative;width:100%;height:140px;background:var(--panel);border:2px dashed var(--border);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;overflow:hidden;transition:border-color .15s}
+.photo-upload img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.photo-upload input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.photo-upload .ph-label{color:var(--muted);font-size:13px;font-weight:600;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:6px;z-index:1}
+.photo-remove{position:absolute;top:8px;right:8px;background:#000a;border:none;border-radius:8px;padding:6px 10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;z-index:2;font-family:var(--font-mono)}
+
+/* Scanner */
+#scanner-wrap{position:relative;margin:0 16px;border-radius:16px;overflow:hidden;background:#000;height:240px;flex-shrink:0}
+#scanner-video{width:100%;height:100%;object-fit:cover}
+.viewfinder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.vf-box{width:180px;height:180px;position:relative}
+.vf-corner{position:absolute;width:22px;height:22px;border-color:var(--accent2);border-style:solid}
+.vf-corner.tl{top:0;left:0;border-width:3px 0 0 3px}
+.vf-corner.tr{top:0;right:0;border-width:3px 3px 0 0}
+.vf-corner.bl{bottom:0;left:0;border-width:0 0 3px 3px}
+.vf-corner.br{bottom:0;right:0;border-width:0 3px 3px 0}
+.scan-hint-txt{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:12px;color:#ffffffAA}
+.manual-row{display:flex;gap:10px;margin:12px 16px 0}
+.manual-row input{flex:1;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px;font-family:var(--font-mono);outline:none}
+.manual-row button{background:var(--accent);border:none;border-radius:10px;padding:12px 16px;cursor:pointer}
+.not-found{display:flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--red) 15%,transparent);border:1px solid var(--red);border-radius:10px;padding:12px;margin:12px 16px 0}
+.not-found span{flex:1;color:var(--red);font-size:13px}
+.perm-box{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px;text-align:center}
+.perm-box h2{font-family:var(--font-head);font-size:22px}
+.perm-box p{color:var(--muted);font-size:14px;line-height:1.6}
+
+/* Missing banner */
+.missing-banner{background:color-mix(in srgb,var(--red) 10%,transparent);border:1px solid color-mix(in srgb,var(--red) 30%,transparent);border-radius:14px;padding:14px 16px;margin:0 16px 12px;display:none}
+.missing-banner.show{display:block}
+.missing-banner h3{color:var(--red);font-family:var(--font-head);font-size:14px;margin-bottom:8px}
+.missing-item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid color-mix(in srgb,var(--red) 20%,transparent)}
+.missing-item-row:last-child{border-bottom:none;padding-bottom:0}
+
+/* Missing screen */
+.out-row{display:flex;align-items:flex-start;gap:12px;padding:14px;border-bottom:1px solid var(--border);cursor:pointer}
+.out-row:last-child{border-bottom:none}
+.out-photo{width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--panel);display:flex;align-items:center;justify-content:center}
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+
+#install-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:300;background:var(--accent);color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));flex-direction:row;align-items:center;gap:10px;font-size:13px;font-weight:700}
+#install-banner button{margin-left:auto;background:#fff;color:var(--accent);border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-family:var(--font-mono);cursor:pointer}
+#install-banner .dismiss{background:none;color:#fff;opacity:.7;padding:6px;margin-left:0}
+
+@media print{
+  body *{display:none!important}
+  #print-area{display:block!important;padding:20px;font-family:sans-serif}
+  .print-qr-item{display:inline-block;margin:12px;text-align:center;break-inside:avoid}
+  .print-qr-item p{font-size:12px;margin-top:6px;font-weight:700}
+  .print-qr-item span{font-size:10px;color:#666;display:block}
+}
+#print-area{display:none}
+</style>
+</head>
+<body>
+
+<div id="install-banner">
+  <span>Add David's Inventory to home screen!</span>
+  <button id="install-btn">Install</button>
+  <button class="dismiss" id="dismiss-banner">✕</button>
+</div>
+<div id="print-area"></div>
+
+<div id="app">
+
+  <!-- INVENTORY -->
+  <div class="screen active" id="screen-stuff">
+    <div class="hdr">
+      <div>
+        <h1>DAVID'S INVENTORY</h1>
+        <div class="sub">PERSONAL TRACKER</div>
+      </div>
+      <div id="out-badge" class="badge badge-red" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span id="out-count">0</span> OUT
+      </div>
+    </div>
+    <div id="missing-banner" class="missing-banner"></div>
+    <div class="search-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--muted)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="search-inp" placeholder="Search items, serials…">
+    </div>
+    <div class="pills" id="filter-pills"></div>
+    <div class="scroll" id="item-list"></div>
+  </div>
+
+  <!-- SCAN -->
+  <div class="screen" id="screen-scan">
+    <div class="hdr"><h1>SCAN</h1></div>
+    <div id="cam-perm-box" class="perm-box" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:52px;height:52px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <h2>Camera Needed</h2>
+      <p>Allow camera access to scan item QR codes.</p>
+      <button class="btn btn-accent" id="req-cam-btn" style="max-width:200px">Allow Camera</button>
+    </div>
+    <div id="scanner-wrap">
+      <video id="scanner-video" autoplay playsinline muted></video>
+      <div class="viewfinder"><div class="vf-box"><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div></div></div>
+      <div class="scan-hint-txt">Scan an item QR code</div>
+    </div>
+    <div class="manual-row">
+      <input type="text" id="manual-inp" placeholder="Or type item name / serial…">
+      <button id="manual-btn"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" style="width:18px;height:18px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+    </div>
+    <div id="not-found-bar" class="not-found" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="not-found-text"></span>
+      <button style="background:none;border:none;color:var(--muted);cursor:pointer" id="nf-close">✕</button>
+    </div>
+    <div class="scroll" style="padding-top:12px"><p style="color:var(--muted);font-size:12px;text-align:center;line-height:1.6">Scan item QR codes to look up details.<br>Hard drive serials are shown on the detail card.</p></div>
+  </div>
+
+  <!-- ADD -->
+  <div class="screen" id="screen-add">
+    <div class="hdr" style="padding-bottom:4px">
+      <button id="add-back" style="background:none;border:none;color:var(--text);cursor:pointer;padding:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <h1 id="form-title">ADD ITEM</h1>
+      <div style="width:34px"></div>
+    </div>
+    <div class="scroll">
+
+      <!-- Category picker -->
+      <div class="field">
+        <label>CATEGORY *</label>
+        <div class="cat-toggle">
+          <button class="cat-btn" id="cat-dr" onclick="setCategory('dressing-room')">👗 Dressing Room</button>
+          <button class="cat-btn" id="cat-hd" onclick="setCategory('hard-drive')">💾 Hard Drive</button>
+        </div>
+      </div>
+
+      <!-- Photo -->
+      <div class="field">
+        <label>PHOTO</label>
+        <div class="photo-upload">
+          <img id="photo-preview" style="display:none" alt="">
+          <input type="file" accept="image/*" id="photo-input" capture="environment">
+          <div class="ph-label" id="ph-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:28px;height:28px;opacity:.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Tap to add a photo
+          </div>
+          <button class="photo-remove" id="photo-remove" style="display:none">✕ Remove</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>ITEM NAME *</label>
+        <input type="text" id="f-name" placeholder="e.g. Samsung 4TB External">
+        <div class="err-msg" id="f-name-err">Name is required</div>
+      </div>
+
+      <!-- Dressing Room location picker -->
+      <div id="dr-loc-section" style="display:none">
+        <div class="loc-picker">
+          <div class="loc-picker-hdr">LOCATION IN DRESSING ROOM *</div>
+          <div class="loc-breadcrumb" id="loc-breadcrumb"></div>
+          <div id="loc-picker-body"></div>
+          <div class="loc-err" id="loc-err">Please select a location</div>
+        </div>
+      </div>
+
+      <!-- Hard Drive fields -->
+      <div id="hd-section" style="display:none">
+        <div class="hd-fields">
+          <div class="hf-label">💾 HARD DRIVE DETAILS</div>
+          <div class="field" style="margin-bottom:12px">
+            <label>DRIVE TYPE *</label>
+            <select id="hd-type">
+              <option value="">Select type…</option>
+              <option value="Internal HDD">Internal HDD</option>
+              <option value="Internal SSD">Internal SSD</option>
+              <option value="Internal NVMe">Internal NVMe</option>
+              <option value="External HDD">External HDD</option>
+              <option value="External SSD">External SSD</option>
+              <option value="NAS Drive">NAS Drive</option>
+              <option value="USB Flash Drive">USB Flash Drive</option>
+              <option value="SD Card">SD Card</option>
+            </select>
+            <div class="err-msg" id="hd-type-err">Drive type is required</div>
+          </div>
+          <div class="field" style="margin-bottom:12px">
+            <label>CAPACITY</label>
+            <input type="text" id="hd-size" placeholder="e.g. 4TB, 512GB">
+          </div>
+          <div class="field" style="margin-bottom:12px">
+            <label>LOCATION / MACHINE *</label>
+            <input type="text" id="hd-location" placeholder="e.g. Main PC, NAS Bay 2, Shelf A">
+            <div class="hint">Which machine, enclosure, or shelf it's in</div>
+            <div class="err-msg" id="hd-loc-err">Location is required</div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>SERIAL NUMBER *</label>
+            <input type="text" id="hd-serial" placeholder="e.g. S4EVNX0R123456" style="font-family:var(--font-mono);letter-spacing:1px">
+            <div class="hint">Check the drive label or manufacturer sticker. This proves it hasn't been swapped.</div>
+            <div class="err-msg" id="hd-serial-err">Serial number is required</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shared fields -->
+      <div class="field">
+        <label>DESCRIPTION</label>
+        <input type="text" id="f-desc" placeholder="Brand, model, color, condition…">
+      </div>
+      <div class="field" id="f-serial-field">
+        <label>SERIAL / ID NUMBER</label>
+        <input type="text" id="f-serial" placeholder="For clothing tags, electronics, etc.">
+      </div>
+      <div class="field">
+        <label>NOTES</label>
+        <textarea id="f-notes" placeholder="Any other details…"></textarea>
+      </div>
+      <div class="err-msg" id="cat-err" style="margin-bottom:10px;font-size:12px">Please select a category first</div>
+      <button class="btn btn-accent btn-full" id="save-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg>
+        <span id="save-btn-label">Add Item</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MISSING -->
+  <div class="screen" id="screen-missing">
+    <div class="hdr"><h1>MISSING</h1></div>
+    <div class="scroll" id="missing-content"></div>
+  </div>
+
+  <nav>
+    <button class="active" data-screen="stuff">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>INVENTORY
+    </button>
+    <button data-screen="scan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>SCAN
+    </button>
+    <button data-screen="add">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>ADD
+    </button>
+    <button data-screen="missing">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>MISSING
+    </button>
+  </nav>
+</div>
+
+<!-- ITEM DETAIL MODAL -->
+<div class="overlay" id="detail-overlay">
+  <div class="sheet">
+    <div class="sheet-hdr"><h2 id="d-name"></h2><button class="close-btn" id="detail-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div id="d-photo-wrap" style="margin-bottom:14px;display:none"><img id="d-photo" style="width:100%;height:180px;object-fit:cover;border-radius:12px" alt=""></div>
+    <div id="d-cat-badge" style="margin-bottom:12px"></div>
+    <div id="d-status-row" style="margin-bottom:16px"></div>
+    <!-- Serial number highlight box (hard drives) -->
+    <div id="d-serial-box" style="display:none" class="serial-box">
+      <div>
+        <div class="sl">SERIAL NUMBER</div>
+        <div class="sv" id="d-serial-val"></div>
+      </div>
+      <div class="shield">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px;height:28px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+    </div>
+    <div id="d-rows"></div>
+    <div class="sec-label">REPORT AN ISSUE</div>
+    <div class="report-row" id="d-report-row"></div>
+    <div class="checkout-box" id="checkout-box">
+      <h3 id="checkout-title">LEND THIS ITEM</h3>
+      <div class="co-field" id="co-who-field">
+        <label>WHO'S TAKING IT? <span class="req">*</span></label>
+        <input type="text" class="co-input" id="borrower-inp" placeholder="Enter their name">
+        <div class="co-err" id="borrower-err">A name is required</div>
+      </div>
+      <div class="co-field" id="co-purpose-field"><label>WHAT FOR?</label><input type="text" class="co-input" id="purpose-inp" placeholder="e.g. backing up files"></div>
+      <div class="co-field" id="co-where-field"><label>TAKING IT WHERE?</label><input type="text" class="co-input" id="where-inp" placeholder="e.g. office, outside"></div>
+      <button class="btn btn-full" id="checkout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg><span id="checkout-btn-label">Mark as Out</span></button>
+    </div>
+    <button class="qr-toggle" id="qr-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M17 14h.01M14 17h.01M17 17h.01"/></svg><span id="qr-toggle-label">Show QR Code</span></button>
+    <div class="qr-box" id="qr-box">
+      <div id="qr-canvas"></div>
+      <div class="qr-hint">Stick this on the item — scan to look up instantly</div>
+      <div class="qr-actions">
+        <button class="btn btn-ghost" id="qr-download" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
+        <button class="btn btn-ghost" id="qr-print" style="font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
+      </div>
+    </div>
+    <div id="activity-section"></div>
+    <div class="action-row" style="margin-top:20px">
+      <button class="btn btn-ghost" id="d-edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>Edit</button>
+      <button class="btn btn-red" id="d-delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCAN RESULT MODAL -->
+<div class="overlay" id="scan-overlay">
+  <div class="sheet">
+    <div class="sheet-hdr"><h2 id="sr-name"></h2><button class="close-btn" id="scan-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div id="sr-photo-wrap" style="margin-bottom:12px;display:none"><img id="sr-photo" style="width:100%;height:130px;object-fit:cover;border-radius:12px" alt=""></div>
+    <div id="sr-serial-box" style="display:none" class="serial-box" style="margin-bottom:12px">
+      <div><div class="sl">SERIAL NUMBER — VERIFY THIS</div><div class="sv" id="sr-serial-val"></div></div>
+      <div class="shield"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:24px;height:24px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    </div>
+    <div id="sr-status" style="margin-bottom:12px"></div>
+    <div id="sr-rows"></div>
+    <div id="sr-actions" style="margin-top:16px"></div>
+    <button class="btn btn-ghost btn-full" id="scan-again-btn" style="margin-top:10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>Scan Another</button>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="overlay" id="report-overlay">
+  <div class="sheet">
+    <div class="sheet-hdr"><h2 id="report-title"></h2><button class="close-btn" id="report-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:22px;height:22px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <p id="report-sub" style="color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.6"></p>
+    <div class="field"><label id="report-field-label">DETAILS</label><textarea id="report-details" placeholder="Optional…"></textarea></div>
+    <button class="btn btn-full" id="report-confirm">Confirm</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+//  DRESSING ROOM LOCATION STRUCTURE
+// ═══════════════════════════════════════
+const DR_SECTIONS = [
+  {
+    label: 'Workstation Drawers',
+    items: ['L1','L2','L3','M1','M2','R1','R2'],
+    subSlots: {}
+  },
+  {
+    label: 'Closets',
+    items: ['H1','H2','D3','D4','D5','D6'],
+    subSlots: {}
+  },
+  {
+    label: 'Drawers',
+    items: ['R1','R2','R3','M1','M2','H3','D7','D8','D9','L1','L2'],
+    subSlots: {}
+  }
+];
+
+// ═══════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════
+const KEY = 'davids_inventory_v1';
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return[]}}
+function save(items){localStorage.setItem(KEY,JSON.stringify(items))}
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+function qrVal(item){return JSON.stringify({type:'item',id:item.id,name:item.name})}
+function fmtDate(iso){return new Date(iso).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'})}
+function statusLabel(item){
+  if(item.status==='broken')return{label:'BROKEN',cls:'chip-broken',bc:'purple'};
+  if(item.status==='empty') return{label:'EMPTY', cls:'chip-empty', bc:'amber'};
+  if(item.status==='swapped')return{label:'⚠ SWAP ALERT',cls:'chip-out',bc:'red'};
+  if(item.status==='out')   return{label:'OUT',   cls:'chip-out',  bc:'red'};
+  return{label:'HOME',cls:'chip-home',bc:'green'};
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// ═══════════════════════════════════════
+//  LOCATION PICKER STATE (Dressing Room)
+// ═══════════════════════════════════════
+let locState={section:null,slot:null,done:false};
+function locReset(){locState={section:null,slot:null,done:false};renderLocPicker()}
+function locFullPath(){
+  const parts=[];
+  if(locState.section)parts.push(locState.section);
+  if(locState.slot)parts.push(locState.slot);
+  return parts.join(' → ');
+}
+function renderLocPicker(){
+  const body=document.getElementById('loc-picker-body');
+  const bc=document.getElementById('loc-breadcrumb');
+  bc.textContent=locFullPath()||'';
+  if(locState.done){
+    body.innerHTML=`<div class="loc-result">📍 ${esc(locFullPath())}</div><button class="loc-back" id="loc-change">✎ Change</button>`;
+    document.getElementById('loc-change').addEventListener('click',locReset);
+    return;
+  }
+  if(!locState.section){
+    body.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">PICK SECTION</div>
+      <div class="loc-grid" style="grid-template-columns:1fr 1fr 1fr">
+        ${DR_SECTIONS.map(s=>`<button class="loc-btn" data-sec="${esc(s.label)}">${esc(s.label)}</button>`).join('')}
+      </div>`;
+    body.querySelectorAll('[data-sec]').forEach(b=>b.addEventListener('click',()=>{locState.section=b.dataset.sec;renderLocPicker()}));
+    return;
+  }
+  const sec=DR_SECTIONS.find(s=>s.label===locState.section);
+  const cols=sec.items.length<=4?sec.items.length:sec.items.length<=6?3:4;
+  body.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">PICK SLOT — ${esc(locState.section)}</div>
+    <div class="loc-grid" style="grid-template-columns:repeat(${cols},1fr)">
+      ${sec.items.map(it=>`<button class="loc-btn" data-slot="${esc(it)}">${esc(it)}</button>`).join('')}
+    </div>
+    <button class="loc-back" id="lb-sec">← Back</button>`;
+  body.querySelectorAll('[data-slot]').forEach(b=>b.addEventListener('click',()=>{locState.slot=b.dataset.slot;locState.done=true;renderLocPicker()}));
+  document.getElementById('lb-sec').addEventListener('click',()=>{locState.section=null;renderLocPicker()});
+}
+
+// ═══════════════════════════════════════
+//  CATEGORY SELECTION
+// ═══════════════════════════════════════
+let currentCategory = null;
+function setCategory(cat){
+  currentCategory=cat;
+  document.getElementById('cat-dr').className='cat-btn'+(cat==='dressing-room'?' active-dr':'');
+  document.getElementById('cat-hd').className='cat-btn'+(cat==='hard-drive'?' active-hd':'');
+  document.getElementById('dr-loc-section').style.display=cat==='dressing-room'?'block':'none';
+  document.getElementById('hd-section').style.display=cat==='hard-drive'?'block':'none';
+  document.getElementById('f-serial-field').style.display=cat==='hard-drive'?'none':'block';
+  document.getElementById('cat-err').style.display='none';
+}
+
+// ═══════════════════════════════════════
+//  NAV
+// ═══════════════════════════════════════
+let editingId=null;
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelector(`[data-screen="${name}"]`).classList.add('active');
+  if(name==='stuff')  renderStuff();
+  if(name==='scan')   initScanner();
+  if(name==='missing')renderMissing();
+  if(name==='add'&&!editingId)resetForm();
+  if(name!=='scan')   stopScanner();
+}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>showScreen(b.dataset.screen)));
+
+// ═══════════════════════════════════════
+//  STUFF LIST
+// ═══════════════════════════════════════
+let filterMode='All',searchQ='';
+function renderStuff(){
+  const items=load();
+  const outItems=items.filter(i=>i.status==='out'||i.status==='swapped');
+  document.getElementById('out-count').textContent=outItems.length;
+  document.getElementById('out-badge').style.display=outItems.length?'flex':'none';
+  const banner=document.getElementById('missing-banner');
+  if(outItems.length){
+    banner.classList.add('show');
+    banner.innerHTML=`<h3>⚠ ${outItems.length} item${outItems.length>1?'s':''} not home</h3>`+
+      outItems.slice(0,3).map(i=>`<div class="missing-item-row"><span style="font-size:13px;font-weight:600">${esc(i.name)}</span><span style="font-size:11px;color:var(--amber)">${i.status==='swapped'?'⚠ SWAP ALERT':i.borrower?'👤 '+esc(i.borrower):'unknown'}</span></div>`).join('')+
+      (outItems.length>3?`<div style="font-size:11px;color:var(--muted);margin-top:6px">+${outItems.length-3} more</div>`:'');
+  } else banner.classList.remove('show');
+
+  const pillsEl=document.getElementById('filter-pills');
+  pillsEl.innerHTML=['All','Dressing Room','Hard Drives','Out','Alerts'].map(p=>{
+    let cls='pill';
+    if(p===filterMode)cls+=p==='Out'||p==='Alerts'?' active-red':' active';
+    return`<button class="${cls}" data-f="${p}">${p}</button>`;
+  }).join('');
+  pillsEl.querySelectorAll('.pill').forEach(p=>p.addEventListener('click',()=>{filterMode=p.dataset.f;renderStuff()}));
+
+  let filtered=items.filter(i=>{
+    const mQ=!searchQ||i.name.toLowerCase().includes(searchQ)||(i.hdSerial||'').toLowerCase().includes(searchQ)||(i.desc||'').toLowerCase().includes(searchQ)||(i.location||'').toLowerCase().includes(searchQ);
+    let mF=true;
+    if(filterMode==='Dressing Room')mF=i.category==='dressing-room';
+    else if(filterMode==='Hard Drives')mF=i.category==='hard-drive';
+    else if(filterMode==='Out')   mF=i.status==='out';
+    else if(filterMode==='Alerts')mF=i.status==='swapped';
+    return mQ&&mF;
+  });
+
+  const list=document.getElementById('item-list');
+  if(!filtered.length){list.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:52px;height:52px"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><p>${items.length?'No items match.':'No items yet.\nTap ADD to start.'}</p></div>`;return;}
+
+  list.innerHTML=filtered.map(item=>{
+    const st=statusLabel(item);
+    const isHD=item.category==='hard-drive';
+    const borderCls=item.status==='out'||item.status==='swapped'?'missing':item.status==='broken'||item.status==='empty'?'broken':isHD?'hd-card':'';
+    const catChip=isHD?`<span class="cat-chip cat-hd">💾 HARD DRIVE</span>`:`<span class="cat-chip cat-dr">👗 DRESSING ROOM</span>`;
+    return`<div class="item-card ${borderCls}" data-id="${item.id}">
+      ${item.photo?`<img class="card-photo" src="${item.photo}" alt="">`:''}
+      <div class="card-body">
+        ${catChip}
+        <div class="card-top">
+          <div style="flex:1;margin-right:8px">
+            <div class="item-name">${esc(item.name)}</div>
+            ${isHD?`<div class="item-loc">${esc(item.hdType||'')}${item.hdSize?' · '+esc(item.hdSize):''}</div>`:''}
+            <div class="item-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(item.location||'')}</div>
+            ${isHD&&item.hdSerial?`<div class="serial-preview">S/N: ${esc(item.hdSerial)}</div>`:''}
+          </div>
+          <span class="status-chip ${st.cls}">${st.label}</span>
+        </div>
+        ${item.status==='out'&&item.borrower?`<div class="borrower-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${esc(item.borrower)}${item.purpose?' · '+esc(item.purpose):''}</div>`:''}
+        ${item.status==='swapped'?`<div style="font-size:12px;color:var(--red);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">⚠ Possible swap detected — verify serial number</div>`:''}
+        ${item.status==='broken'?`<div style="font-size:12px;color:var(--purple);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">⚠ Reported broken</div>`:''}
+        ${item.status==='empty'?`<div style="font-size:12px;color:var(--amber);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">📦 Used the last of it</div>`:''}
+      </div></div>`;
+  }).join('');
+  list.querySelectorAll('.item-card').forEach(c=>c.addEventListener('click',()=>openDetail(c.dataset.id)));
+}
+document.getElementById('search-inp').addEventListener('input',e=>{searchQ=e.target.value.toLowerCase();renderStuff()});
+
+// ═══════════════════════════════════════
+//  DETAIL MODAL
+// ═══════════════════════════════════════
+let detailId=null,qrOpen=false,qrInstance=null;
+function openDetail(id){
+  const items=load();const item=items.find(i=>i.id===id);if(!item)return;
+  detailId=id;qrOpen=false;
+  const isHD=item.category==='hard-drive';
+  document.getElementById('d-name').textContent=item.name;
+  const pw=document.getElementById('d-photo-wrap');
+  if(item.photo){pw.style.display='block';document.getElementById('d-photo').src=item.photo}else pw.style.display='none';
+  document.getElementById('d-cat-badge').innerHTML=isHD?`<span class="cat-chip cat-hd">💾 HARD DRIVE</span>`:`<span class="cat-chip cat-dr">👗 DRESSING ROOM</span>`;
+
+  // Serial box for HD
+  const sb=document.getElementById('d-serial-box');
+  if(isHD&&item.hdSerial){sb.style.display='flex';document.getElementById('d-serial-val').textContent=item.hdSerial;}
+  else sb.style.display='none';
+
+  const st=statusLabel(item);
+  document.getElementById('d-status-row').innerHTML=`<span class="badge badge-${st.bc}">${item.status==='home'?'✓ AT HOME':item.status==='out'?'⬆ OUT':item.status==='swapped'?'⚠ SWAP ALERT':item.status==='broken'?'⚠ BROKEN':'📦 NEEDS RESTOCKING'}</span>`;
+
+  document.getElementById('d-rows').innerHTML=[
+    ['LOCATION', item.location||'—'],
+    isHD&&item.hdType?['DRIVE TYPE',item.hdType]:null,
+    isHD&&item.hdSize?['CAPACITY',item.hdSize]:null,
+    item.desc?['DESCRIPTION',item.desc]:null,
+    !isHD&&item.serial?['SERIAL / ID',item.serial]:null,
+    item.notes?['NOTES',item.notes]:null,
+    ['ADDED',fmtDate(item.addedAt)],
+    item.status==='out'&&item.borrower?['BORROWED BY',item.borrower]:null,
+    item.status==='out'&&item.purpose?['PURPOSE',item.purpose]:null,
+    item.status==='out'&&item.whereAt?['TAKEN TO',item.whereAt]:null,
+    item.status==='out'&&item.checkedOutAt?['SINCE',fmtDate(item.checkedOutAt)]:null,
+  ].filter(Boolean).map(([l,v])=>`<div class="detail-row"><span class="dl">${l}</span><span class="dv">${esc(String(v))}</span></div>`).join('');
+
+  // Report buttons — hard drives get swap alert option
+  const rr=document.getElementById('d-report-row');
+  rr.innerHTML=`
+    <button class="report-btn rb-broke" id="d-broke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>BROKE IT</button>
+    <button class="report-btn rb-empty" id="d-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>USED LAST</button>
+    ${isHD?`<button class="report-btn rb-swap" id="d-swap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>SWAP ALERT</button>`:''}`;
+  document.getElementById('d-broke').onclick=()=>openReport('broke',item);
+  document.getElementById('d-empty').onclick=()=>openReport('empty',item);
+  if(isHD) document.getElementById('d-swap').onclick=()=>openReport('swap',item);
+
+  const isOut=item.status==='out';const isBrokenOrEmpty=item.status==='broken'||item.status==='empty'||item.status==='swapped';
+  document.getElementById('checkout-title').textContent=isOut?'MARK AS RETURNED':'LEND THIS ITEM';
+  document.getElementById('checkout-btn-label').textContent=isOut?'Mark as Returned':'Mark as Out';
+  document.getElementById('checkout-btn').className=`btn btn-full ${isOut?'btn-green':'btn-amber'}`;
+  const showFields=!isOut&&!isBrokenOrEmpty;
+  ['co-who-field','co-purpose-field','co-where-field'].forEach(id=>document.getElementById(id).style.display=showFields?'block':'none');
+  ['borrower-inp','purpose-inp','where-inp'].forEach(id=>{document.getElementById(id).value='';document.getElementById(id).classList.remove('err')});
+  document.getElementById('borrower-err').classList.remove('show');
+
+  const log=(item.log||[]).slice().reverse().slice(0,10);
+  document.getElementById('activity-section').innerHTML=log.length?`<div class="sec-label">ACTIVITY</div><div class="section-card">${log.map(e=>`<div class="log-entry"><div class="log-action" style="color:${e.type==='out'?'var(--amber)':e.type==='returned'?'var(--green)':e.type==='swap'?'var(--red)':e.type==='broken'?'var(--purple)':'var(--muted)'}">${esc(e.label)}</div>${e.detail?`<div class="log-detail">${esc(e.detail)}</div>`:''}<div class="log-meta">${fmtDate(e.at)}</div></div>`).join('')}</div>`:'';
+
+  document.getElementById('qr-toggle-label').textContent='Show QR Code';
+  document.getElementById('qr-box').classList.remove('open');
+  document.getElementById('qr-canvas').innerHTML='';qrInstance=null;
+  document.getElementById('detail-overlay').classList.add('open');
+}
+
+document.getElementById('checkout-btn').addEventListener('click',()=>{
+  const items=load();const idx=items.findIndex(i=>i.id===detailId);if(idx===-1)return;
+  const item=items[idx];const isOut=item.status==='out';const now=new Date().toISOString();
+  if(isOut){
+    items[idx]={...item,status:'home',borrower:null,purpose:null,whereAt:null,checkedOutAt:null,log:[...(item.log||[]),{type:'returned',label:'Returned home',at:now}]};
+    save(items);document.getElementById('detail-overlay').classList.remove('open');renderStuff();
+  } else {
+    const who=document.getElementById('borrower-inp').value.trim();
+    if(!who){document.getElementById('borrower-inp').classList.add('err');document.getElementById('borrower-err').classList.add('show');document.getElementById('borrower-inp').focus();return;}
+    const purpose=document.getElementById('purpose-inp').value.trim();const where=document.getElementById('where-inp').value.trim();
+    items[idx]={...item,status:'out',borrower:who,purpose:purpose||null,whereAt:where||null,checkedOutAt:now,log:[...(item.log||[]),{type:'out',label:`Taken by ${who}`,detail:[purpose&&`For: ${purpose}`,where&&`Going to: ${where}`].filter(Boolean).join(' · ')||null,at:now}]};
+    save(items);document.getElementById('detail-overlay').classList.remove('open');renderStuff();
+  }
+});
+document.getElementById('borrower-inp').addEventListener('input',()=>{document.getElementById('borrower-inp').classList.remove('err');document.getElementById('borrower-err').classList.remove('show')});
+document.getElementById('detail-close').addEventListener('click',()=>document.getElementById('detail-overlay').classList.remove('open'));
+document.getElementById('detail-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('detail-overlay'))document.getElementById('detail-overlay').classList.remove('open')});
+
+document.getElementById('qr-toggle').addEventListener('click',()=>{
+  const item=load().find(i=>i.id===detailId);if(!item)return;
+  qrOpen=!qrOpen;document.getElementById('qr-toggle-label').textContent=qrOpen?'Hide QR Code':'Show QR Code';
+  document.getElementById('qr-box').classList.toggle('open',qrOpen);
+  if(qrOpen&&!qrInstance){document.getElementById('qr-canvas').innerHTML='';qrInstance=new QRCode(document.getElementById('qr-canvas'),{text:qrVal(item),width:200,height:200,colorDark:'#EDE9F8',colorLight:'#13101F'});}
+});
+document.getElementById('qr-download').addEventListener('click',()=>{
+  const item=load().find(i=>i.id===detailId);if(!item||!qrInstance)return;
+  setTimeout(()=>{const canvas=document.querySelector('#qr-canvas canvas');if(!canvas)return;
+    const out=document.createElement('canvas');out.width=canvas.width;out.height=canvas.height+70;
+    const ctx=out.getContext('2d');ctx.fillStyle='#13101F';ctx.fillRect(0,0,out.width,out.height);ctx.drawImage(canvas,0,0);
+    ctx.fillStyle='#EDE9F8';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(item.name,out.width/2,canvas.height+20);
+    if(item.hdSerial){ctx.fillStyle='#A78BFA';ctx.font='11px monospace';ctx.fillText('S/N: '+item.hdSerial,out.width/2,canvas.height+40);}
+    ctx.fillStyle='#6B5E8A';ctx.font='11px sans-serif';ctx.fillText(item.location||'',out.width/2,canvas.height+58);
+    const a=document.createElement('a');a.href=out.toDataURL('image/png');a.download=`qr-${item.name.replace(/\s+/g,'-').toLowerCase()}.png`;a.click();},100);
+});
+document.getElementById('qr-print').addEventListener('click',()=>{
+  const item=load().find(i=>i.id===detailId);if(!item||!qrInstance)return;
+  setTimeout(()=>{const canvas=document.querySelector('#qr-canvas canvas');if(!canvas)return;
+    document.getElementById('print-area').innerHTML=`<div class="print-qr-item"><img src="${canvas.toDataURL()}" style="width:200px"><p>${item.name}</p><span>${item.hdSerial?'S/N: '+item.hdSerial:''}</span><span>${item.location||''}</span></div>`;window.print();},100);
+});
+document.getElementById('d-edit').addEventListener('click',()=>{document.getElementById('detail-overlay').classList.remove('open');openEdit(detailId)});
+document.getElementById('d-delete').addEventListener('click',()=>{
+  const item=load().find(i=>i.id===detailId);if(!item||!confirm(`Delete "${item.name}"?`))return;
+  save(load().filter(i=>i.id!==detailId));document.getElementById('detail-overlay').classList.remove('open');renderStuff();
+});
+
+// ═══════════════════════════════════════
+//  REPORT MODAL
+// ═══════════════════════════════════════
+let reportType=null,reportItemId=null;
+function openReport(type,item){
+  reportType=type;reportItemId=item.id;document.getElementById('detail-overlay').classList.remove('open');
+  const titles={broke:'Oops, Broke It',empty:'Used the Last of It',swap:'⚠ Swap Alert'};
+  const subs={broke:`Mark "${item.name}" as broken.`,empty:`Mark "${item.name}" as empty/used up.`,swap:`Flag "${item.name}" as possibly swapped. The serial number on record will remain for comparison.`};
+  const btnCls={broke:'btn btn-purple btn-full',empty:'btn btn-amber btn-full',swap:'btn btn-red btn-full'};
+  const btnTxt={broke:'⚠ Mark as Broken',empty:'📦 Mark as Empty',swap:'⚠ Flag as Swapped'};
+  document.getElementById('report-title').textContent=titles[type];
+  document.getElementById('report-sub').textContent=subs[type];
+  document.getElementById('report-field-label').textContent=type==='swap'?'WHAT DID YOU NOTICE?':'DETAILS (optional)';
+  document.getElementById('report-confirm').className=btnCls[type];
+  document.getElementById('report-confirm').textContent=btnTxt[type];
+  document.getElementById('report-details').value='';
+  document.getElementById('report-overlay').classList.add('open');
+}
+document.getElementById('report-confirm').addEventListener('click',()=>{
+  const items=load();const idx=items.findIndex(i=>i.id===reportItemId);if(idx===-1)return;
+  const detail=document.getElementById('report-details').value.trim();const now=new Date().toISOString();
+  const statusMap={broke:'broken',empty:'empty',swap:'swapped'};
+  const labelMap={broke:'Reported as broken',empty:'Reported: used the last of it',swap:'⚠ Possible swap flagged — verify serial number'};
+  items[idx].status=statusMap[reportType];
+  items[idx].log=[...(items[idx].log||[]),{type:reportType,label:labelMap[reportType],detail:detail||null,at:now}];
+  save(items);document.getElementById('report-overlay').classList.remove('open');renderStuff();
+});
+document.getElementById('report-close').addEventListener('click',()=>{document.getElementById('report-overlay').classList.remove('open');setTimeout(()=>detailId&&openDetail(detailId),200)});
+document.getElementById('report-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('report-overlay'))document.getElementById('report-overlay').classList.remove('open')});
+
+// ═══════════════════════════════════════
+//  ADD / EDIT FORM
+// ═══════════════════════════════════════
+let photoData=null;
+document.getElementById('photo-input').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();reader.onload=ev=>{photoData=ev.target.result;document.getElementById('photo-preview').src=photoData;document.getElementById('photo-preview').style.display='block';document.getElementById('ph-label').style.display='none';document.getElementById('photo-remove').style.display='block';};reader.readAsDataURL(file);
+});
+document.getElementById('photo-remove').addEventListener('click',e=>{
+  e.preventDefault();e.stopPropagation();photoData=null;document.getElementById('photo-preview').style.display='none';document.getElementById('ph-label').style.display='flex';document.getElementById('photo-remove').style.display='none';document.getElementById('photo-input').value='';
+});
+
+function resetForm(){
+  editingId=null;photoData=null;currentCategory=null;
+  document.getElementById('form-title').textContent='ADD ITEM';document.getElementById('save-btn-label').textContent='Add Item';
+  ['f-name','f-desc','f-serial','f-notes','hd-size','hd-location','hd-serial'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('hd-type').value='';
+  document.getElementById('photo-preview').style.display='none';document.getElementById('ph-label').style.display='flex';document.getElementById('photo-remove').style.display='none';document.getElementById('photo-input').value='';
+  document.getElementById('cat-dr').className='cat-btn';document.getElementById('cat-hd').className='cat-btn';
+  document.getElementById('dr-loc-section').style.display='none';document.getElementById('hd-section').style.display='none';
+  document.getElementById('f-serial-field').style.display='block';
+  ['f-name-err','hd-type-err','hd-loc-err','hd-serial-err'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('cat-err').style.display='none';document.getElementById('loc-err').classList.remove('show');
+  locReset();
+}
+
+function openEdit(id){
+  const item=load().find(i=>i.id===id);if(!item)return;
+  editingId=id;document.getElementById('form-title').textContent='EDIT ITEM';document.getElementById('save-btn-label').textContent='Save Changes';
+  setCategory(item.category);
+  document.getElementById('f-name').value=item.name;document.getElementById('f-desc').value=item.desc||'';document.getElementById('f-serial').value=item.serial||'';document.getElementById('f-notes').value=item.notes||'';
+  if(item.category==='hard-drive'){document.getElementById('hd-type').value=item.hdType||'';document.getElementById('hd-size').value=item.hdSize||'';document.getElementById('hd-location').value=item.location||'';document.getElementById('hd-serial').value=item.hdSerial||'';}
+  if(item.photo){photoData=item.photo;document.getElementById('photo-preview').src=item.photo;document.getElementById('photo-preview').style.display='block';document.getElementById('ph-label').style.display='none';document.getElementById('photo-remove').style.display='block';}
+  else{photoData=null;document.getElementById('photo-preview').style.display='none';document.getElementById('ph-label').style.display='flex';document.getElementById('photo-remove').style.display='none';}
+  if(item.category==='dressing-room'&&item.location){
+    const parts=item.location.split(' → ');locState={section:parts[0]||null,slot:parts[1]||null,done:true};
+    document.getElementById('loc-breadcrumb').textContent=item.location;
+    const body=document.getElementById('loc-picker-body');
+    body.innerHTML=`<div class="loc-result">📍 ${esc(item.location)}</div><button class="loc-back" id="loc-change">✎ Change</button>`;
+    document.getElementById('loc-change').addEventListener('click',locReset);
+  } else locReset();
+  showScreen('add');
+}
+
+document.getElementById('add-back').addEventListener('click',()=>{editingId=null;showScreen('stuff')});
+document.getElementById('save-btn').addEventListener('click',()=>{
+  if(!currentCategory){document.getElementById('cat-err').style.display='block';return;}
+  const name=document.getElementById('f-name').value.trim();
+  document.getElementById('f-name-err').style.display=name?'none':'block';
+  let valid=!!name;
+  const isHD=currentCategory==='hard-drive';
+  const isDR=currentCategory==='dressing-room';
+  let hdType='',hdSize='',hdLocation='',hdSerial='',drLocation='';
+  if(isHD){
+    hdType=document.getElementById('hd-type').value;hdSize=document.getElementById('hd-size').value.trim();hdLocation=document.getElementById('hd-location').value.trim();hdSerial=document.getElementById('hd-serial').value.trim();
+    document.getElementById('hd-type-err').style.display=hdType?'none':'block';document.getElementById('hd-loc-err').style.display=hdLocation?'none':'block';document.getElementById('hd-serial-err').style.display=hdSerial?'none':'block';
+    if(!hdType||!hdLocation||!hdSerial)valid=false;
+  }
+  if(isDR){if(!locState.done){document.getElementById('loc-err').classList.add('show');valid=false;}else drLocation=locFullPath();}
+  if(!valid)return;
+  const items=load();const now=new Date().toISOString();
+  const fields={
+    name,category:currentCategory,
+    location:isHD?hdLocation:drLocation,
+    desc:document.getElementById('f-desc').value.trim()||null,
+    serial:!isHD?document.getElementById('f-serial').value.trim()||null:null,
+    notes:document.getElementById('f-notes').value.trim()||null,
+    photo:photoData||null,
+    hdType:isHD?hdType:null,hdSize:isHD?hdSize||null:null,hdSerial:isHD?hdSerial:null,
+  };
+  let newItem=null;
+  if(editingId){const idx=items.findIndex(i=>i.id===editingId);if(idx!==-1)Object.assign(items[idx],fields);}
+  else{newItem={id:genId(),...fields,status:'home',borrower:null,purpose:null,whereAt:null,addedAt:now,log:[{type:'added',label:'Added to inventory',at:now}]};items.push(newItem);}
+  save(items);editingId=null;photoData=null;
+  showScreen('stuff');
+  if(newItem)setTimeout(()=>{if(confirm(`"${newItem.name}" added! Open its QR code?`)){openDetail(newItem.id);setTimeout(()=>document.getElementById('qr-toggle').click(),400)}},200);
+});
+
+// ═══════════════════════════════════════
+//  MISSING SCREEN
+// ═══════════════════════════════════════
+function renderMissing(){
+  const items=load();const out=items.filter(i=>i.status==='out'||i.status==='swapped');const broken=items.filter(i=>i.status==='broken'||i.status==='empty');
+  const el=document.getElementById('missing-content');
+  if(!out.length&&!broken.length){el.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:52px;height:52px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><p>All good! Everything is accounted for. 🎉</p></div>`;return;}
+  let html='';
+  if(out.length){
+    html+=`<div style="background:color-mix(in srgb,var(--red) 10%,transparent);border:1px solid color-mix(in srgb,var(--red) 30%,transparent);border-radius:14px;padding:14px 16px;margin-bottom:16px"><div style="font-family:var(--font-head);font-size:28px;font-weight:900;color:var(--red)">${out.length}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${out.length===1?'item needs attention':'items need attention'}</div></div>
+    <div class="section-card" style="margin-bottom:24px">${out.map(item=>`<div class="out-row" data-id="${item.id}">
+      ${item.photo?`<img class="out-photo" src="${item.photo}" alt="">`:`<div class="out-photo"></div>`}
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-head);font-size:14px;font-weight:700">${esc(item.name)}</div>
+        ${item.status==='swapped'?`<div style="font-size:12px;color:var(--red);margin-top:2px">⚠ Swap alert — check serial number</div><div style="font-size:11px;color:var(--accent2);font-family:var(--font-mono);margin-top:2px">On record: ${esc(item.hdSerial||'N/A')}</div>`:
+        `<div style="font-size:12px;color:var(--amber);margin-top:2px">👤 ${esc(item.borrower||'Unknown')}</div>${item.purpose?`<div style="font-size:12px;color:var(--muted);font-style:italic">"${esc(item.purpose)}"</div>`:''}`}
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(item.location||'')}</div>
+      </div>
+      <button class="btn btn-green" style="padding:10px 12px;font-size:12px;min-width:auto;flex:none" data-return="${item.id}">✓ Back</button>
+    </div>`).join('')}</div>`;
+  }
+  if(broken.length){
+    html+=`<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--purple);margin-bottom:10px">NEEDS ATTENTION</div>
+    <div class="section-card">${broken.map(item=>`<div class="out-row" data-id="${item.id}">
+      ${item.photo?`<img class="out-photo" src="${item.photo}" alt="">`:`<div class="out-photo"></div>`}
+      <div style="flex:1"><div style="font-family:var(--font-head);font-size:14px;font-weight:700">${esc(item.name)}</div><div style="font-size:12px;margin-top:2px;color:${item.status==='broken'?'var(--purple)':'var(--amber)'}">${item.status==='broken'?'⚠ Broken':'📦 Needs restocking'}</div><div style="font-size:11px;color:var(--muted)">${esc(item.location||'')}</div></div>
+      <button class="btn btn-green" style="padding:10px 12px;font-size:12px;min-width:auto;flex:none" data-fix="${item.id}">✓ Fixed</button>
+    </div>`).join('')}</div>`;
+  }
+  el.innerHTML=html;
+  el.querySelectorAll('.out-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('[data-return],[data-fix]'))return;openDetail(row.dataset.id)}));
+  el.querySelectorAll('[data-return]').forEach(btn=>btn.addEventListener('click',e=>{
+    e.stopPropagation();const items=load();const idx=items.findIndex(i=>i.id===btn.dataset.return);if(idx===-1)return;
+    const now=new Date().toISOString();items[idx]={...items[idx],status:'home',borrower:null,purpose:null,whereAt:null,checkedOutAt:null,log:[...(items[idx].log||[]),{type:'returned',label:'Returned / cleared',at:now}]};
+    save(items);renderMissing();renderStuff();
+  }));
+  el.querySelectorAll('[data-fix]').forEach(btn=>btn.addEventListener('click',e=>{
+    e.stopPropagation();const items=load();const idx=items.findIndex(i=>i.id===btn.dataset.fix);if(idx===-1)return;
+    const now=new Date().toISOString();items[idx]={...items[idx],status:'home',log:[...(items[idx].log||[]),{type:'returned',label:'Marked as fixed / restocked',at:now}]};
+    save(items);renderMissing();renderStuff();
+  }));
+}
+
+// ═══════════════════════════════════════
+//  SCANNER
+// ═══════════════════════════════════════
+let stream=null,scanActive=false,scanInterval=null,barcodeDetector=null;
+async function initScanner(){
+  const video=document.getElementById('scanner-video');const wrap=document.getElementById('scanner-wrap');const permBox=document.getElementById('cam-perm-box');
+  if(stream){scanActive=true;return}
+  if('BarcodeDetector' in window)barcodeDetector=new BarcodeDetector({formats:['qr_code']});
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});video.srcObject=stream;wrap.style.display='block';permBox.style.display='none';scanActive=true;startScanLoop();}
+  catch{wrap.style.display='none';permBox.style.display='flex'}
+}
+document.getElementById('req-cam-btn').addEventListener('click',initScanner);
+function startScanLoop(){
+  if(scanInterval)clearInterval(scanInterval);
+  scanInterval=setInterval(async()=>{
+    if(!scanActive||!stream||!barcodeDetector)return;const video=document.getElementById('scanner-video');if(video.readyState<2)return;
+    try{const codes=await barcodeDetector.detect(video);if(codes.length){scanActive=false;if(navigator.vibrate)navigator.vibrate(80);handleScanned(codes[0].rawValue)}}catch{}
+  },300);
+}
+function stopScanner(){scanActive=false;if(scanInterval){clearInterval(scanInterval);scanInterval=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+function handleScanned(val){
+  const items=load();
+  try{const p=JSON.parse(val);if(p.type==='item'){const item=items.find(i=>i.id===p.id);if(item){openScanResult(item);return;}}}catch{}
+  const v=val.trim().toLowerCase();
+  const item=items.find(i=>i.name.toLowerCase()===v||(i.hdSerial||'').toLowerCase()===v);
+  if(item){openScanResult(item);return;}
+  document.getElementById('not-found-text').textContent=`No item found for "${val}"`;document.getElementById('not-found-bar').style.display='flex';setTimeout(()=>{scanActive=true},2000);
+}
+document.getElementById('manual-btn').addEventListener('click',()=>{const v=document.getElementById('manual-inp').value.trim();if(!v)return;document.getElementById('manual-inp').value='';handleScanned(v)});
+document.getElementById('manual-inp').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('manual-btn').click()});
+document.getElementById('nf-close').addEventListener('click',()=>{document.getElementById('not-found-bar').style.display='none';scanActive=true});
+
+let scanItemId=null;
+function openScanResult(item){
+  scanItemId=item.id;const isOut=item.status==='out';const isHD=item.category==='hard-drive';const st=statusLabel(item);
+  document.getElementById('sr-name').textContent=item.name;
+  const pw=document.getElementById('sr-photo-wrap');if(item.photo){pw.style.display='block';document.getElementById('sr-photo').src=item.photo}else pw.style.display='none';
+  const sb=document.getElementById('sr-serial-box');
+  if(isHD&&item.hdSerial){sb.style.display='flex';document.getElementById('sr-serial-val').textContent=item.hdSerial;}else sb.style.display='none';
+  document.getElementById('sr-status').innerHTML=`<span class="badge badge-${st.bc}">${st.label}</span>`;
+  document.getElementById('sr-rows').innerHTML=[
+    ['LOCATION',item.location||'—'],
+    isHD&&item.hdType?['DRIVE TYPE',item.hdType]:null,
+    isHD&&item.hdSize?['CAPACITY',item.hdSize]:null,
+    item.desc?['DESCRIPTION',item.desc]:null,
+    isOut&&item.borrower?['BORROWED BY',item.borrower]:null,
+    isOut&&item.purpose?['FOR',item.purpose]:null,
+    isOut&&item.whereAt?['TAKEN TO',item.whereAt]:null,
+  ].filter(Boolean).map(([l,v])=>`<div class="detail-row"><span class="dl">${l}</span><span class="dv">${esc(v)}</span></div>`).join('');
+  const actEl=document.getElementById('sr-actions');
+  if(isOut){
+    actEl.innerHTML=`<button class="btn btn-green btn-full" id="sr-return"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px"><polyline points="20 6 9 17 4 12"/></svg>Mark as Returned</button>`;
+    document.getElementById('sr-return').addEventListener('click',()=>{
+      const items=load();const idx=items.findIndex(i=>i.id===scanItemId);if(idx===-1)return;const now=new Date().toISOString();
+      items[idx]={...items[idx],status:'home',borrower:null,purpose:null,whereAt:null,checkedOutAt:null,log:[...(items[idx].log||[]),{type:'returned',label:'Returned home',at:now}]};
+      save(items);document.getElementById('scan-overlay').classList.remove('open');renderStuff();
+    });
+  } else {
+    actEl.innerHTML=`
+      <div style="margin-bottom:6px"><div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-bottom:5px">WHO'S TAKING IT? <span style="color:var(--red)">*</span></div><input type="text" id="sr-borrower" placeholder="Enter their name" class="co-input" style="width:100%;margin-bottom:4px"><div id="sr-borrower-err" style="font-size:11px;color:var(--red);display:none">A name is required</div></div>
+      <div style="margin-bottom:6px"><div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-bottom:5px">WHAT FOR?</div><input type="text" id="sr-purpose" placeholder="e.g. backing up files" class="co-input" style="width:100%"></div>
+      <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-bottom:5px">TAKING IT WHERE?</div><input type="text" id="sr-where" placeholder="e.g. office" class="co-input" style="width:100%"></div>
+      <button class="btn btn-amber btn-full" id="sr-checkout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Check Out</button>`;
+    document.getElementById('sr-borrower').addEventListener('input',()=>{document.getElementById('sr-borrower').classList.remove('err');document.getElementById('sr-borrower-err').style.display='none'});
+    document.getElementById('sr-checkout').addEventListener('click',()=>{
+      const who=document.getElementById('sr-borrower').value.trim();
+      if(!who){document.getElementById('sr-borrower').classList.add('err');document.getElementById('sr-borrower-err').style.display='block';document.getElementById('sr-borrower').focus();return;}
+      const purpose=document.getElementById('sr-purpose').value.trim();const where=document.getElementById('sr-where').value.trim();
+      const items=load();const idx=items.findIndex(i=>i.id===scanItemId);if(idx===-1)return;const now=new Date().toISOString();
+      items[idx]={...items[idx],status:'out',borrower:who,purpose:purpose||null,whereAt:where||null,checkedOutAt:now,log:[...(items[idx].log||[]),{type:'out',label:`Taken by ${who}`,detail:[purpose&&`For: ${purpose}`,where&&`Going to: ${where}`].filter(Boolean).join(' · ')||null,at:now}]};
+      save(items);document.getElementById('scan-overlay').classList.remove('open');renderStuff();
+    });
+  }
+  document.getElementById('scan-overlay').classList.add('open');
+}
+document.getElementById('scan-close').addEventListener('click',resetScan);document.getElementById('scan-again-btn').addEventListener('click',resetScan);document.getElementById('scan-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('scan-overlay'))resetScan()});
+function resetScan(){document.getElementById('scan-overlay').classList.remove('open');scanItemId=null;setTimeout(()=>{scanActive=true},500)}
+
+// ═══════════════════════════════════════
+//  PWA
+// ═══════════════════════════════════════
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('install-banner').style.display='flex'});
+document.getElementById('install-btn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById('install-banner').style.display='none'});
+document.getElementById('dismiss-banner').addEventListener('click',()=>document.getElementById('install-banner').style.display='none');
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}
+
+renderStuff();
+</script>
+</body>
+</html>
